@@ -1,7 +1,7 @@
 targeting-service:
   replicaCount: 2
   namespace: targeting-service
-  image: 778900740186.dkr.ecr.us-east-1.amazonaws.com/targeting-service:0b75962
+  image: 778900740186.dkr.ecr.us-east-1.amazonaws.com/targeting-service:ef0b6a3
   imagePullPolicy: IfNotPresent
   port: 8080
   imagePullSecrets:
