@@ -35,6 +35,9 @@ targeting-service:
     - secretRef:
         name: targeting-service-db-credentials
 
+  ingress:
+    path: /targeting-service(/|$)(.*)
+
   autoscaling:
     enabled: true
     minReplicas: 2
