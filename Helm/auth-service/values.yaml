@@ -31,9 +31,9 @@ targeting-service:
       failureThreshold: 3
   envFrom:
     - secretRef:
-        name: targeting-service-db-secret
+        name: targeting-service-config
     - secretRef:
-        name: targeting-service-db-secret-host
+        name: targeting-service-db-credentials
 
   autoscaling:
     enabled: true
