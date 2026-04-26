@@ -1,5 +1,5 @@
-targeting-service:
-  replicaCount: 2
+﻿targeting-service:
+  replicas: 1
   namespace: targeting-service
   image: 778900740186.dkr.ecr.us-east-1.amazonaws.com/targeting-service:staging-b127812
   imagePullPolicy: IfNotPresent
@@ -40,7 +40,7 @@ targeting-service:
 
   autoscaling:
     enabled: true
-    minReplicas: 2
+    minReplicas: 1
     maxReplicas: 3
     targetCPUUtilizationPercentage: 80
     targetMemoryUtilizationPercentage: 80
