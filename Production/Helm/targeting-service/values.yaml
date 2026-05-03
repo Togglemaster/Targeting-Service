@@ -3,7 +3,7 @@ targeting-service:
   namespace: targeting-service
   image: 778900740186.dkr.ecr.us-east-1.amazonaws.com/targeting-service:production-3e03c8c
   imagePullPolicy: IfNotPresent
-  port: 8080
+  port: 8003
   imagePullSecrets:
     - name: ecr-secret
   resources:
