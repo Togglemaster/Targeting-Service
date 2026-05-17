@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          repository: Togglemaster/Targeting-Service
 
       # -----------------------------
       # Setup Python
@@ -105,6 +107,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          repository: Togglemaster/Targeting-Service
 
       # -----------------------------
       # 5. Docker Build
@@ -171,6 +175,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          repository: Togglemaster/Targeting-Service
           fetch-depth: 0
           token: ${{ secrets.GITOPS_TOKEN }}
 
