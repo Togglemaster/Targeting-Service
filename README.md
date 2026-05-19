@@ -1,137 +1,388 @@
-# targeting-service (Python)
+# Targeting Service 🎯
 
-Este é o serviço de regras de segmentação (targeting) do projeto ToggleMaster. Ele é responsável por gerenciar regras complexas (ex: "50% dos usuários", "usuários do país X") para uma feature flag específica.
+Serviço de gerenciamento de regras de segmentação (targeting rules) do **ToggleMaster**. Este serviço define regras complexas para quando uma feature flag deve estar ativa.
 
-**IMPORTANTE:** Este serviço também é protegido e depende que o `auth-service` esteja rodando (ex: em `http://localhost:8001`).
+## 🎯 Descrição do Serviço
 
-## 📦 Pré-requisitos (Local)
+O Targeting Service gerencia as regras de segmentação para cada feature flag. Ele:
 
-* [Python](https://www.python.org/) (versão 3.9 ou superior)
-* [PostgreSQL](https://www.postgresql.org/download/)
-* O `auth-service` deve estar rodando.
+1. Define regras complexas para ativação de flags (ex: "50% dos usuários", "usuários do país X")
+2. Armazena regras em PostgreSQL como JSON
+3. Requer autenticação via chaves de API (valida com Auth Service)
+4. Expõe endpoints para gerenciar regras por flag
+5. Fornece endpoint `/health` para monitoramento
 
-## 🚀 Rodando Localmente
+**Função crítica:** Sem regras de targeting, uma flag seria ativada para 100% dos usuários. Este serviço controla o escopo exato da ativação.
 
-1.  **Clone o repositório** e entre na pasta `targeting-service`.
+## 📦 Stack Técnico
 
-2.  **Prepare o Banco de Dados:**
-    * Crie um banco de dados no seu PostgreSQL (ex: `targeting_db`).
-    * Execute o script `db/init.sql` para criar a tabela `targeting_rules`:
-        ```bash
-        psql -U seu_usuario -d targeting_db -f db/init.sql
-        ```
+- **Linguagem:** Python 3.9+
+- **Framework:** Flask
+- **Banco de Dados:** PostgreSQL (com suporte a JSON)
+- **Autenticação:** Bearer Token (integração com Auth Service)
+- **Dependências principais:** psycopg2, flask, python-dotenv
 
-3.  **Configure as Variáveis de Ambiente:**
-    Crie um arquivo chamado `.env` na raiz desta pasta (`targeting-service/`) com o seguinte conteúdo:
-    ```.env
-    # String de conexão do seu banco de dados PostgreSQL
-    DATABASE_URL="postgres://SEU_USUARIO:SUA_SENHA@localhost:5432/targeting_db"
-    
-    # Porta que este serviço (targeting-service) irá rodar
-    PORT="8003"
-    
-    # URL do auth-service (que deve estar rodando na porta 8001)
-    AUTH_SERVICE_URL="http://localhost:8001"
-    ```
+## 🚀 Como Usar
 
-4.  **Instale as Dependências:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+### Pré-requisitos Locais
 
-5.  **Inicie o Serviço:**
-    ```bash
-    gunicorn --bind 0.0.0.0:8003 app:app
-    ```
-    O servidor estará rodando em `http://localhost:8003`.
+- Python 3.9 ou superior
+- PostgreSQL 12+ (instalado ou via Docker)
+- Auth Service rodando (porta 8001)
+
+### Setup Local
+
+#### 1. Clone e Navegue para o Diretório
+```bash
+cd Targeting-Service
+```
+
+#### 2. Prepare o Banco de Dados
+
+Crie um banco de dados PostgreSQL:
+```bash
+createdb targeting_db
+```
+
+Execute o script de inicialização:
+```bash
+psql -U seu_usuario -d targeting_db -f db/init.sql
+```
+
+Este script cria a tabela `targeting_rules` com a seguinte estrutura:
+```sql
+CREATE TABLE targeting_rules (
+    id SERIAL PRIMARY KEY,
+    flag_name VARCHAR(255) NOT NULL,
+    rules JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(flag_name)
+);
+```
+
+#### 3. Configure as Variáveis de Ambiente
+Crie um arquivo `.env` na raiz do serviço:
+
+```env
+# Banco de Dados PostgreSQL
+DATABASE_URL=postgres://usuario:senha@localhost:5432/targeting_db
+
+# Ou configure individualmente:
+POSTGRES_USER=togglemaster
+POSTGRES_PASSWORD=seu_password_seguro
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=targeting_db
+
+# Serviço
+PORT=8003
+
+# Auth Service (para validação de chaves)
+AUTH_SERVICE_URL=http://localhost:8001
+
+# Ambiente
+ENVIRONMENT=development
+```
+
+#### 4. Instale as Dependências
+```bash
+pip install -r requirements.txt
+```
+
+#### 5. Inicie o Serviço
+```bash
+gunicorn --bind 0.0.0.0:8003 app:app
+```
+
+O servidor estará disponível em `http://localhost:8003`.
+
+### Testando Localmente
+
+#### 1. Crie uma Chave de API
+Primeiro, gere uma chave via Auth Service:
+
+```bash
+curl -X POST http://localhost:8001/admin/keys \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer admin-secreto-123" \
+  -d '{"name": "targeting-service-client"}'
+
+# Salve a chave retornada como SUA_CHAVE_API
+```
+
+#### 2. Health Check
+```bash
+curl http://localhost:8003/health
+# Resposta esperada: {"status":"ok"}
+```
+
+#### 3. Criar Regras de Targeting para uma Flag
+
+```bash
+curl -X POST http://localhost:8003/targeting/enable-new-dashboard \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SUA_CHAVE_API" \
+  -d '{
+    "rules": {
+      "percentage": 50,
+      "countries": ["BR", "US"],
+      "user_segments": ["premium"],
+      "blacklist": ["user-123", "user-456"]
+    }
+  }'
+
+# Resposta esperada:
+# {
+#   "flag_name": "enable-new-dashboard",
+#   "rules": {
+#     "percentage": 50,
+#     "countries": ["BR", "US"],
+#     "user_segments": ["premium"],
+#     "blacklist": ["user-123", "user-456"]
+#   },
+#   "created_at": "2025-05-17T10:30:00"
+# }
+```
+
+#### 4. Obter Regras de uma Flag
+```bash
+curl http://localhost:8003/targeting/enable-new-dashboard \
+  -H "Authorization: Bearer SUA_CHAVE_API"
+
+# Resposta esperada: JSON com as regras
+```
+
+#### 5. Listar Todas as Regras
+```bash
+curl http://localhost:8003/targeting \
+  -H "Authorization: Bearer SUA_CHAVE_API"
+
+# Resposta esperada: lista de todas as regras
+```
+
+#### 6. Atualizar Regras
+```bash
+curl -X PUT http://localhost:8003/targeting/enable-new-dashboard \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SUA_CHAVE_API" \
+  -d '{
+    "rules": {
+      "percentage": 75,
+      "countries": ["BR", "US", "MX"],
+      "user_segments": ["premium", "beta-testers"]
+    }
+  }'
+```
+
+#### 7. Deletar Regras de uma Flag
+```bash
+curl -X DELETE http://localhost:8003/targeting/enable-new-dashboard \
+  -H "Authorization: Bearer SUA_CHAVE_API"
+
+# Resposta esperada: {"message":"Regras de targeting deletadas"}
+```
 
 ## 🔧 Variáveis de Ambiente
 
-O serviço requer as seguintes variáveis de ambiente para funcionar:
-
 ### Obrigatórias
-- **`DATABASE_URL`** - String de conexão completa com o PostgreSQL
-  - Exemplo: `postgres://usuario:senha@localhost:5432/targeting_db`
-  - Alternativamente, pode ser montada a partir das variáveis individuais abaixo
-- **`AUTH_SERVICE_URL`** - URL do Auth Service para validação de chaves
-  - Exemplo: `http://localhost:8001`
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `POSTGRES_USER` | Usuário PostgreSQL | `togglemaster` |
+| `POSTGRES_PASSWORD` | Senha PostgreSQL | `senha_forte_123` |
+| `POSTGRES_HOST` | Host PostgreSQL | `localhost` |
+| `POSTGRES_PORT` | Porta PostgreSQL | `5432` |
+| `POSTGRES_DB` | Nome do banco de dados | `targeting_db` |
+| `AUTH_SERVICE_URL` | URL do Auth Service | `http://localhost:8001` |
 
-### Variáveis Individuais (se DATABASE_URL não for definida)
-- **`POSTGRES_USER`** - Usuário do PostgreSQL
-- **`POSTGRES_PASSWORD`** - Senha do PostgreSQL  
-- **`POSTGRES_HOST`** - Host do PostgreSQL (ex: `localhost`)
-- **`POSTGRES_PORT`** - Porta do PostgreSQL (ex: `5432`)
-- **`POSTGRES_DB`** - Nome do banco de dados
+**Nota:** Alternativamente, use `DATABASE_URL` ao invés das variáveis individuais.
 
-### Outras Variáveis
-- **`PORT`** - Porta onde o serviço irá rodar (padrão: `8003`)
+### Opcionais
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| `PORT` | Porta do servidor | `8003` |
+| `ENVIRONMENT` | Ambiente (development/production) | `development` |
+| `LOG_LEVEL` | Nível de log | `INFO` |
+| `MAX_CONNECTIONS` | Conexões máximas ao BD | `10` |
 
-### Exemplo de arquivo .env
-```env
-# Opção 1: URL completa
-DATABASE_URL="postgres://togglemaster:senha123@localhost:5432/targeting_db"
+## 🔐 GitHub Secrets Necessários
 
-# Opção 2: Variáveis individuais
-POSTGRES_USER="togglemaster"
-POSTGRES_PASSWORD="senha123"
-POSTGRES_HOST="localhost"
-POSTGRES_PORT="5432"
-POSTGRES_DB="targeting_db"
+Configure os seguintes secrets no GitHub para CI/CD:
 
-# Configurações do serviço
-PORT="8003"
-AUTH_SERVICE_URL="http://localhost:8001"
+```yaml
+POSTGRES_USER
+  Descrição: Usuário PostgreSQL
+  Valor: togglemaster
+
+POSTGRES_PASSWORD
+  Descrição: Senha PostgreSQL
+  Valor: <sua-senha-forte>
+
+POSTGRES_HOST
+  Descrição: Host PostgreSQL
+  Valor: db.example.com
+
+POSTGRES_PORT
+  Descrição: Porta PostgreSQL
+  Valor: 5432
+
+POSTGRES_DB
+  Descrição: Nome do banco de dados
+  Valor: targeting_db
+
+DATABASE_URL
+  Descrição: String de conexão completa
+  Valor: postgres://user:password@host:5432/targeting_db
+
+AUTH_SERVICE_URL
+  Descrição: URL do Auth Service
+  Valor: http://auth-service:8001
+
+DOCKERHUB_USERNAME
+  Descrição: Docker Hub username
+  Valor: <seu-username>
+
+DOCKERHUB_TOKEN
+  Descrição: Docker Hub personal access token
+  Valor: <seu-token>
+
+REGISTRY_URL
+  Descrição: URL do registry de container
+  Valor: docker.io
+
+SONAR_TOKEN
+  Descrição: Token SonarQube
+  Valor: <seu-token>
 ```
 
-### Notas Importantes
-- O **Auth Service** deve estar acessível na URL configurada
-- O banco de dados PostgreSQL deve ter a tabela `targeting_rules` criada (use `db/init.sql`)
-- Todas as requisições (exceto `/health`) exigem header `Authorization: Bearer <chave>`
-- As regras são armazenadas como JSON no campo `rules` da tabela
+## 📊 Endpoints da API
 
-## 🧪 Testando os Endpoints
+### Públicos (sem autenticação)
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| GET | `/health` | Verifica saúde do serviço |
 
-Lembre-se de obter sua `SUA_CHAVE_API` no `auth-service` (veja o README do `flag-service`).
+### Protegidos (requer Bearer Token)
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| GET | `/targeting` | Lista todas as regras |
+| POST | `/targeting/{flag_name}` | Cria regras para uma flag |
+| GET | `/targeting/{flag_name}` | Obtém regras de uma flag |
+| PUT | `/targeting/{flag_name}` | Atualiza regras de uma flag |
+| DELETE | `/targeting/{flag_name}` | Deleta regras de uma flag |
 
-**1. Verifique a Saúde (Health Check):**
+## 📋 Formato das Regras (JSON)
+
+As regras são armazenadas como JSON. Exemplo completo:
+
+```json
+{
+  "percentage": 50,
+  "countries": ["BR", "US", "MX"],
+  "user_segments": ["premium", "beta-testers"],
+  "blacklist": ["user-123", "user-456"],
+  "whitelist": ["user-789"],
+  "start_date": "2025-05-17T00:00:00Z",
+  "end_date": "2025-06-17T23:59:59Z"
+}
+```
+
+### Campos das Regras
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `percentage` | número (0-100) | Percentual de usuários que recebem a flag |
+| `countries` | array | Códigos de país (ISO 3166-1 alpha-2) |
+| `user_segments` | array | Segmentos de usuários (ex: premium, beta) |
+| `blacklist` | array | IDs de usuários que NÃO recebem a flag |
+| `whitelist` | array | IDs de usuários que SEMPRE recebem a flag |
+| `start_date` | ISO 8601 | Data/hora de início |
+| `end_date` | ISO 8601 | Data/hora de fim |
+
+## 🎯 Exemplos de Regras
+
+### Exemplo 1: Rollout progressivo
+```json
+{
+  "percentage": 10,
+  "start_date": "2025-05-17T00:00:00Z",
+  "end_date": "2025-05-24T00:00:00Z"
+}
+```
+
+### Exemplo 2: Apenas usuários premium em certos países
+```json
+{
+  "user_segments": ["premium"],
+  "countries": ["BR", "US"]
+}
+```
+
+### Exemplo 3: Whitelist + Blacklist
+```json
+{
+  "percentage": 50,
+  "whitelist": ["user-vip-1", "user-vip-2"],
+  "blacklist": ["user-problematic-1"]
+}
+```
+
+## 🏗️ Arquitetura
+
+```
+Request → Middleware Auth → Flask Route → Validator → Database (JSONB) → Response
+                ↓
+         Validação na Auth Service
+```
+
+## 🐛 Troubleshooting
+
+### Problema: "psycopg2.OperationalError: could not connect"
+**Solução:** Verifique credenciais do PostgreSQL
 ```bash
-curl http://localhost:8003/health
+psql -U seu_usuario -d targeting_db -c "SELECT 1"
 ```
-Saída esperada: `{"status":"ok"}`
 
-**2. Crie uma nova Regra de Segmentação:** Vamos criar uma regra para a flag enable-new-dashboard (que você criou no flag-service). Esta regra fará a flag aparecer para 50% dos usuários.
+### Problema: "Authorization header obrigatório"
+**Solução:** Adicione o header Authorization
 ```bash
-curl -X POST http://localhost:8003/rules \
--H "Content-Type: application/json" \
--H "Authorization: Bearer SUA_CHAVE_API" \
--d '{
-    "flag_name": "enable-new-dashboard",
-    "is_enabled": true,
-    "rules": {
-        "type": "PERCENTAGE",
-        "value": 50
-    }
-}'
+curl -H "Authorization: Bearer sua_chave" ...
 ```
-Saída esperada: (Um JSON com os dados da regra criada).
 
-**3. Busque a Regra que você criou:**
-```bash
-curl http://localhost:8003/rules/enable-new-dashboard \
--H "Authorization: Bearer SUA_CHAVE_API"
-```
-Saída esperada: (O JSON da regra que você acabou de criar).
+### Problema: "Invalid JSON in rules"
+**Solução:** Valide a estrutura JSON das regras
 
-**4. Atualize a Regra (mude para 75%):**
+### Problema: "Flag_name already exists"
+**Solução:** Use PUT para atualizar ao invés de POST
+
+## 📊 Monitoramento
+
+### Logs
 ```bash
-curl -X PUT http://localhost:8003/rules/enable-new-dashboard \
--H "Content-Type: application/json" \
--H "Authorization: Bearer SUA_CHAVE_API" \
--d '{
-    "rules": {
-        "type": "PERCENTAGE",
-        "value": 75
-    }
-}'
+docker logs targeting-service
+# ou localmente
+tail -f logs/targeting-service.log
 ```
-Saída esperada: (O JSON da regra atualizada, com `"value": 75`).
+
+### Métricas
+- Número total de regras
+- Taxa de atualizações
+- Tempo de resposta
+
+## 📈 Boas Práticas
+
+1. **Sempre use whitelist para usuários especiais** (VIP, testers)
+2. **Valide percentuais** (devem estar entre 0-100)
+3. **Teste regras antes de aplicar** em produção
+4. **Documenta o propósito** de cada regra
+5. **Use datas de fim** para rollouts temporários
+
+## 📚 Recursos Adicionais
+
+- [Flask Documentation](https://flask.palletsprojects.com/)
+- [PostgreSQL JSON Documentation](https://www.postgresql.org/docs/current/datatype-json.html)
+- [ToggleMaster Architecture](../README.md)
+
+## 👥 Suporte
+
+Para dúvidas ou problemas, abra uma issue no repositório principal ou entre em contato com o time DevOps.
